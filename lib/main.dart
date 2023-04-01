@@ -1,10 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:upload/path_utils.dart';
 import 'package:upload/progress_file.dart';
+import 'package:upload/qrcode_image.dart';
 import 'package:upload/upload_item.dart';
-
-import 'config.dart';
 
 void main() {
   runApp(const MyApp());
@@ -57,6 +57,30 @@ class _MyHomePageState extends State<MyHomePage> {
                 total: progressFile.total,
               ),
             ),
+            const SizedBox(
+              height: 48,
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ..._files.map((progressFile) {
+                  var extension = progressFile.file.extension;
+                  if (extension == apk) {
+                    return _qrcodeImage(
+                      progressFile.file.name,
+                      android: true,
+                    );
+                  } else if (extension == ipa) {
+                    return _qrcodeImage(
+                      progressFile.file.name,
+                      android: false,
+                    );
+                  } else {
+                    return Container();
+                  }
+                }),
+              ],
+            )
           ],
         ),
       ),
@@ -68,11 +92,36 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+  Widget _qrcodeImage(
+    String fileName, {
+    required bool android,
+  }) {
+    return Column(
+      children: [
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          child: QrcodeImage(
+            qrcodeText: android
+                ? getAndroidQrcodePath(fileName)
+                : getIOSQrcodePath(fileName),
+          ),
+        ),
+        const SizedBox(
+          height: 16,
+        ),
+        Text(
+          fileName,
+          style: const TextStyle(fontSize: 16),
+        ),
+      ],
+    );
+  }
+
   void _uploadFiles() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
-      allowedExtensions: ['apk', 'ipa', 'plist'],
+      allowedExtensions: [apk, ipa, plist],
       withData: false,
       withReadStream: true,
     );
@@ -107,15 +156,13 @@ class _MyHomePageState extends State<MyHomePage> {
       requestHeader: true,
       responseHeader: true,
     ));
-    dio.options.baseUrl = fileDir;
     dio.options.headers = {
       'Content-Type': 'application/octet-stream',
       'Content-Length': file.size.toString(),
     };
 
-    // print('${dio.options.baseUrl}/${file.name}');
     final response = await dio.put(
-      '${dio.options.baseUrl}/${file.name}',
+      getUploadPath(file.name),
       data: fileReadStream,
       onSendProgress: (int sent, int total) {
         setState(() {
