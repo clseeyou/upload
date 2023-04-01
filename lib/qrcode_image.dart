@@ -14,7 +14,7 @@ class QrcodeImage extends StatefulWidget {
 }
 
 class _QrcodeImageState extends State<QrcodeImage> {
-  final _size = 200.0;
+  final _size = 1000.0;
 
   @override
   Widget build(BuildContext context) {
@@ -27,9 +27,14 @@ class _QrcodeImageState extends State<QrcodeImage> {
   }
 
   Widget _createQRImage() {
+    final logoSize = _size / 5;
     return QrImage(
       data: widget.qrcodeText,
       size: _size,
+      embeddedImage: const AssetImage('assets/images/logo.jpg'),
+      embeddedImageStyle: QrEmbeddedImageStyle(
+        size: Size(logoSize, logoSize),
+      ),
       errorStateBuilder: (cxt, err) {
         return const Center(
           child: Text(

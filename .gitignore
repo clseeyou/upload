@@ -45,3 +45,4 @@ app.*.map.json
 
 # 项目的私有配置文件
 /lib/config.dart
+/assets/images/logo.jpg

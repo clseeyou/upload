@@ -1,6 +1,13 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:motion_toast/motion_toast.dart';
+import 'package:motion_toast/resources/arrays.dart';
 import 'package:upload/path_utils.dart';
 import 'package:upload/progress_file.dart';
 import 'package:upload/qrcode_image.dart';
@@ -36,6 +43,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  final _qrImageSize = 200.0;
   final List<ProgressFile> _files = [];
 
   @override
@@ -48,7 +56,7 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Column(
           children: [
             const SizedBox(
-              height: 48,
+              height: 32,
             ),
             ..._files.map(
               (progressFile) => UploadItem(
@@ -58,28 +66,33 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
             const SizedBox(
-              height: 48,
+              height: 32,
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ..._files.map((progressFile) {
-                  var extension = progressFile.file.extension;
-                  if (extension == apk) {
-                    return _qrcodeImage(
-                      progressFile.file.name,
-                      android: true,
-                    );
-                  } else if (extension == ipa) {
-                    return _qrcodeImage(
-                      progressFile.file.name,
-                      android: false,
-                    );
-                  } else {
-                    return Container();
-                  }
-                }),
-              ],
+            Visibility(
+              visible: !_files.any((progressFile) {
+                return progressFile.send < progressFile.total;
+              }),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ..._files.map((progressFile) {
+                    var extension = progressFile.file.extension;
+                    if (extension == apk) {
+                      return _qrcodeImage(
+                        progressFile.file.name,
+                        android: true,
+                      );
+                    } else if (extension == ipa) {
+                      return _qrcodeImage(
+                        progressFile.file.name,
+                        android: false,
+                      );
+                    } else {
+                      return Container();
+                    }
+                  }),
+                ],
+              ),
             )
           ],
         ),
@@ -96,14 +109,22 @@ class _MyHomePageState extends State<MyHomePage> {
     String fileName, {
     required bool android,
   }) {
+    GlobalKey globalKey = GlobalKey();
     return Column(
       children: [
         Container(
+          width: _qrImageSize,
+          height: _qrImageSize,
           margin: const EdgeInsets.symmetric(horizontal: 16),
-          child: QrcodeImage(
-            qrcodeText: android
-                ? getAndroidQrcodePath(fileName)
-                : getIOSQrcodePath(fileName),
+          child: FittedBox(
+            child: RepaintBoundary(
+              key: globalKey,
+              child: QrcodeImage(
+                qrcodeText: android
+                    ? getAndroidQrcodePath(fileName)
+                    : getIOSQrcodePath(fileName),
+              ),
+            ),
           ),
         ),
         const SizedBox(
@@ -112,6 +133,40 @@ class _MyHomePageState extends State<MyHomePage> {
         Text(
           fileName,
           style: const TextStyle(fontSize: 16),
+        ),
+        const SizedBox(
+          height: 16,
+        ),
+        // 保存
+        Row(
+          children: [
+            ElevatedButton(
+              onPressed: () async {
+                Uint8List? bytes = await _captureWidget(globalKey);
+                await save(fileName, bytes: bytes, android: android);
+                if (context.mounted) {
+                  _toast(context, '保存成功');
+                }
+              },
+              child: const Text('保存图片'),
+            ),
+            const SizedBox(
+              width: 16,
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Clipboard.setData(ClipboardData(
+                  text: android
+                      ? getAndroidQrcodePath(fileName)
+                      : getIOSQrcodePath(fileName),
+                ));
+                if (context.mounted) {
+                  _toast(context, '复制成功');
+                }
+              },
+              child: const Text('复制地址'),
+            ),
+          ],
         ),
       ],
     );
@@ -174,5 +229,50 @@ class _MyHomePageState extends State<MyHomePage> {
     if (response.statusCode != 200) {
       throw Exception('HTTP ${response.statusCode}');
     }
+  }
+
+  Future<void> save(
+    String fileName, {
+    Uint8List? bytes,
+    required bool android,
+  }) async {
+    String? outputFile = await FilePicker.platform.saveFile(
+      fileName: getQrcodeSavePath(
+        fileName,
+        android: android,
+      ),
+      type: FileType.image,
+      allowedExtensions: [png],
+    );
+
+    if (outputFile == null) {
+      throw Exception('File picker was cancelled');
+    }
+
+    try {
+      final file = File(outputFile);
+      file.writeAsBytesSync(bytes ?? []);
+    } catch (e) {
+      throw Exception('File write error');
+    }
+  }
+
+  Future<Uint8List?> _captureWidget(GlobalKey key) async {
+    final RenderRepaintBoundary boundary =
+        key.currentContext?.findRenderObject() as RenderRepaintBoundary;
+    final ui.Image image = await boundary.toImage();
+    final ByteData? byteData =
+        await image.toByteData(format: ui.ImageByteFormat.png);
+
+    return byteData?.buffer.asUint8List();
+  }
+
+  void _toast(BuildContext context, String message) {
+    MotionToast.success(
+      description: Text(message),
+      position: MotionToastPosition.center,
+      animationDuration: const Duration(milliseconds: 200),
+      toastDuration: const Duration(milliseconds: 500),
+    ).show(context);
   }
 }
