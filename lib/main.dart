@@ -43,6 +43,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  final _qrCodeSize = 1000.0;
   final _qrImageSize = 200.0;
   final List<ProgressFile> _files = [];
 
@@ -109,7 +110,8 @@ class _MyHomePageState extends State<MyHomePage> {
     String fileName, {
     required bool android,
   }) {
-    GlobalKey globalKey = GlobalKey();
+    GlobalKey qrcodeKey = GlobalKey();
+    GlobalKey<QrcodeImageState> logoKey = GlobalKey();
     return Column(
       children: [
         Container(
@@ -118,11 +120,22 @@ class _MyHomePageState extends State<MyHomePage> {
           margin: const EdgeInsets.symmetric(horizontal: 16),
           child: FittedBox(
             child: RepaintBoundary(
-              key: globalKey,
-              child: QrcodeImage(
-                qrcodeText: android
-                    ? getAndroidQrcodePath(fileName)
-                    : getIOSQrcodePath(fileName),
+              key: qrcodeKey,
+              child: Container(
+                width: _qrCodeSize,
+                height: _qrCodeSize,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                ),
+                child: QrcodeImage(
+                  key: logoKey,
+                  qrcodeText: android
+                      ? getAndroidQrcodePath(fileName)
+                      : getIOSQrcodePath(fileName),
+                  android: android,
+                  version: getVersion(fileName),
+                  size: _qrCodeSize,
+                ),
               ),
             ),
           ),
@@ -142,7 +155,7 @@ class _MyHomePageState extends State<MyHomePage> {
           children: [
             ElevatedButton(
               onPressed: () async {
-                Uint8List? bytes = await _captureWidget(globalKey);
+                Uint8List? bytes = await _captureWidget(qrcodeKey);
                 await save(fileName, bytes: bytes, android: android);
                 if (context.mounted) {
                   _toast(context, '保存成功');

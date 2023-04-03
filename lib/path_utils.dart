@@ -23,3 +23,14 @@ String getQrcodeSavePath(
 }) {
   return '${fileName.substring(0, fileName.indexOf('.'))}-${android ? 'android' : 'ios'}.png';
 }
+
+String? getVersion(String fileName) {
+  String version = fileName.substring(
+      fileName.startsWith('fiapp-') ? 6 : 0, fileName.lastIndexOf('.'));
+
+  if (version.contains('-')) {
+    version = version.substring(0, version.lastIndexOf('-'));
+  }
+
+  return version == 'inner' ? null : version;
+}
